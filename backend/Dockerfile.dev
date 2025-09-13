@@ -1,0 +1,49 @@
+FROM rust:1.89-slim-bookworm
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-watch for development
+# Use --quiet to reduce output and --jobs 2 to limit CPU usage
+# Also add a timeout to prevent hanging builds
+RUN cargo install --quiet --jobs 2 cargo-watch || (echo "Failed to install cargo-watch, retrying..." && cargo install cargo-watch)
+
+# Verify cargo-watch installation
+RUN cargo-watch --version || echo "cargo-watch installation verification failed"
+
+# Optionally install sea-orm-cli with a specific version to avoid compilation issues
+# Comment out the line below if you don't need sea-orm-cli for migrations
+# RUN cargo install --quiet --jobs 2 sea-orm-cli@1.0.0 || echo "sea-orm-cli installation failed, continuing without it"
+
+# Copy Cargo files for dependency caching
+COPY Cargo.toml ./
+# We'll handle Cargo.lock in the docker-compose file by mounting it
+# This line is intentionally commented out to avoid errors
+# COPY Cargo.lock ./
+COPY migration/Cargo.toml ./migration/
+
+# Skip dependency pre-build step to avoid edition2024 error
+# We'll let the dependencies be built when the container starts
+# This is slower but more reliable
+
+# Create directories for source code
+RUN mkdir -p src migration/src
+
+# Copy the actual source code
+COPY . .
+
+# Make the entrypoint script executable
+RUN chmod +x /app/docker-entrypoint.sh
+
+# Expose the port
+EXPOSE 8080
+
+# Command will be provided by docker-compose
+# Default command if not overridden
+CMD ["./docker-entrypoint.sh"]

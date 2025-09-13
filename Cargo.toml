@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "backend",
+    "backend/migration",
+]
+
+# This is a workspace root Cargo.toml file that points to the actual backend crates
+# It allows cargo commands to be run from the project root

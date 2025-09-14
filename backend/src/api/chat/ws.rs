@@ -94,7 +94,7 @@ impl ChatServer {
     pub fn join_room(&mut self, room_id: String, addr: Addr<ChatSession>, user: UserResponseDto) {
         // Add user to room
         self.rooms.entry(room_id.clone()).or_insert_with(HashSet::new).insert(addr.clone());
-        
+
         // Send recent message history to the new user
         if let Some(history) = self.message_history.get(&room_id) {
             let recent_messages: Vec<WsResponse> = history.iter().rev().take(50).rev().cloned().collect();
@@ -122,7 +122,7 @@ impl ChatServer {
     pub fn leave_room(&mut self, room_id: &str, addr: &Addr<ChatSession>) {
         if let Some(room_sessions) = self.rooms.get_mut(room_id) {
             room_sessions.remove(addr);
-            
+
             // Get user info for the leave notification
             if let Some(user) = self.sessions.get(addr) {
                 let user_left_msg = WsResponse {
@@ -135,7 +135,7 @@ impl ChatServer {
                     timestamp: Utc::now().timestamp(),
                     message_id: None,
                 };
-                
+
                 self.broadcast_to_room(room_id, &user_left_msg, Some(addr));
             }
         }
@@ -175,17 +175,17 @@ impl ChatServer {
     pub fn check_rate_limit(&mut self, user_id: Uuid) -> bool {
         let now = Utc::now().timestamp();
         let (count, timestamp) = self.user_message_counts.entry(user_id).or_insert((0, now));
-        
+
         // Reset count if more than 1 minute has passed
         if now - *timestamp > 60 {
             *count = 0;
             *timestamp = now;
         }
-        
+
         if *count >= MAX_MESSAGES_PER_MINUTE {
             return false;
         }
-        
+
         *count += 1;
         true
     }
@@ -193,7 +193,7 @@ impl ChatServer {
     pub fn store_message_in_history(&mut self, room_id: String, message: WsResponse) {
         let history = self.message_history.entry(room_id).or_insert_with(Vec::new);
         history.push(message);
-        
+
         // Keep only last 100 messages per room
         if history.len() > 100 {
             history.remove(0);
@@ -384,7 +384,7 @@ impl ChatSession {
                         timestamp: Utc::now().timestamp(),
                         message_id: None,
                     };
-                    
+
                     // Send ack only to the sender
                     let _ = self.addr.do_send(SessionMessage(ack_response));
                 }
@@ -396,7 +396,7 @@ impl ChatSession {
                     let user_id_clone = self.user.id;
                     let content_clone = content.clone();
                     let message_id_clone = message_id;
-                    
+
                     // Spawn async task for database persistence
                     tokio::spawn(async move {
                         let message = ChatMessageActiveModel {
@@ -583,7 +583,7 @@ impl Actor for ChatSession {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.addr = ctx.address();
-        
+
         // Set up ping interval
         ctx.run_interval(std::time::Duration::from_secs(30), |act, ctx| {
             let now = Utc::now().timestamp();
@@ -592,7 +592,7 @@ impl Actor for ChatSession {
                 ctx.stop();
                 return;
             }
-            
+
             // Send pong
             let pong_response = WsResponse {
                 message_type: "pong".to_string(),
@@ -696,13 +696,13 @@ lazy_static::lazy_static! {
 pub async fn ws_index(req: HttpRequest, stream: web::Payload, jwt_secret: web::Data<String>, db: web::Data<DatabaseConnection>) -> Result<HttpResponse, Error> {
     debug!("WebSocket connection attempt - Path: {}", req.path());
     debug!("WebSocket connection attempt - Headers: {:?}", req.headers());
-    
+
     // Check for auth_token cookie
     if let Some(cookie) = req.cookie("auth_token") {
         debug!("Found auth_token cookie: {}", cookie.value());
     } else {
         debug!("No auth_token cookie found");
-        
+
         // Check all cookies for debugging
         if let Ok(cookies) = req.cookies() {
             for cookie in cookies.iter() {
@@ -710,14 +710,14 @@ pub async fn ws_index(req: HttpRequest, stream: web::Payload, jwt_secret: web::D
             }
         }
     }
-    
+
     // Check for Authorization header
     if let Some(auth_header) = req.headers().get("Authorization") {
         debug!("Found Authorization header: {}", auth_header.to_str().unwrap_or("invalid"));
     } else {
         debug!("No Authorization header found");
     }
-    
+
     // Try to extract token with more detailed logging
     let token = match extract_token_from_cookie_or_header(&req) {
         Some(token) => {
@@ -731,12 +731,12 @@ pub async fn ws_index(req: HttpRequest, stream: web::Payload, jwt_secret: web::D
             return Err(actix_web::error::ErrorUnauthorized("Authentication token not found. Please log in again."));
         }
     };
-    
+
     debug!("Validating token...");
     let claims = match JwtAuth::validate_token(&token, &jwt_secret) {
         Ok(claims) => {
             debug!("Token validated successfully for user: {}", claims.name);
-            debug!("Token structure - sub: {}, backend_user_id: {:?}, email: {}", 
+            debug!("Token structure - sub: {}, backend_user_id: {:?}, email: {}",
                    claims.sub, claims.backend_user_id, claims.email);
             claims
         },
@@ -755,7 +755,7 @@ pub async fn ws_index(req: HttpRequest, stream: web::Payload, jwt_secret: web::D
             }
         }
     };
-    
+
     // Parse user ID safely - use backend_user_id instead of sub
     let user_id = match &claims.backend_user_id {
         Some(backend_user_id) => {
@@ -775,17 +775,17 @@ pub async fn ws_index(req: HttpRequest, stream: web::Payload, jwt_secret: web::D
             return Err(actix_web::error::ErrorUnauthorized("Missing backend_user_id in token"));
         }
     };
-    
+
     let user = UserResponseDto {
         id: user_id,
-        email: claims.email, 
-        name: claims.name, 
+        email: claims.email,
+        name: claims.name,
         profile_image: claims.profile_image,
-        provider: claims.provider.unwrap_or_default(), 
-        role: claims.user_role.unwrap_or_default(), 
+        provider: claims.provider.unwrap_or_default(),
+        role: claims.user_role.unwrap_or_default(),
         is_active: claims.is_active.unwrap_or(true),
     };
-    
+
     // Set database connection in chat server
     {
         if let Ok(mut server) = CHAT_SERVER.lock() {
@@ -794,7 +794,7 @@ pub async fn ws_index(req: HttpRequest, stream: web::Payload, jwt_secret: web::D
             error!("Failed to acquire chat server lock for database setup");
         }
     }
-    
+
     info!("Starting WebSocket session for user: {}", user.name);
     ws::start(ChatSession::new(user), &req, stream)
 }

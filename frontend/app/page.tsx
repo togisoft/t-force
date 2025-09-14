@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TwoFactorForm } from '@/components/auth/two-factor-form';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 
 // Enhanced Zod schemas
@@ -71,10 +72,12 @@ const getPasswordStrength = (password: string) => {
 export default function AuthPage() {
   const { isAuthenticated, requires2FA, login, register } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
@@ -102,21 +105,75 @@ export default function AuthPage() {
   const onLoginSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     setError(null);
-    const result = await login(data);
-    if (!result.success) {
-      setError(result.error || "Authentication failed.");
+    
+    try {
+      const result = await login(data);
+      if (!result.success) {
+        setError(result.error || "Authentication failed.");
+        toast({
+          title: "Sign In Failed",
+          description: result.error || "Authentication failed. Please check your credentials.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      const errorMessage = "Authentication failed. Please try again.";
+      setError(errorMessage);
+      toast({
+        title: "Sign In Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const onRegisterSubmit = async (data: RegisterFormValues) => {
     setIsRegistering(true);
     setRegisterError(null);
-    const result = await register({ name: data.name, email: data.email, password: data.password });
-    if (!result.success) {
-      setRegisterError(result.error || "Registration failed.");
+    setRegistrationSuccess(false);
+    
+    try {
+      const result = await register({ name: data.name, email: data.email, password: data.password });
+      
+      if (result.success) {
+        setRegistrationSuccess(true);
+        
+        // Show success toast
+        toast({
+          title: "Registration Successful!",
+          description: "Your account has been created successfully. Please sign in with your credentials.",
+          variant: "default",
+        });
+        
+        // Clear the form
+        registerForm.reset();
+        
+        // Switch to login tab after a short delay
+        setTimeout(() => {
+          setActiveTab("login");
+          setRegistrationSuccess(false);
+        }, 2000);
+      } else {
+        setRegisterError(result.error || "Registration failed.");
+        toast({
+          title: "Registration Failed",
+          description: result.error || "Registration failed. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      const errorMessage = "Registration failed. Please try again.";
+      setRegisterError(errorMessage);
+      toast({
+        title: "Registration Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRegistering(false);
     }
-    setIsRegistering(false);
   };
 
   if (isAuthenticated) {
@@ -469,6 +526,16 @@ export default function AuthPage() {
                               )}
                           />
 
+                          {registrationSuccess && (
+                              <Alert className="border-green-200 bg-green-50">
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                <AlertTitle className="text-green-800">Registration Successful!</AlertTitle>
+                                <AlertDescription className="text-green-700">
+                                  Your account has been created successfully. Redirecting to sign in...
+                                </AlertDescription>
+                              </Alert>
+                          )}
+
                           {registerError && (
                               <Alert variant="destructive" className="border-red-200 bg-red-50">
                                 <AlertCircle className="h-4 w-4" />
@@ -480,9 +547,14 @@ export default function AuthPage() {
                           <Button
                               type="submit"
                               className="w-full h-12 text-base font-medium bg-gradient-to-r from-chart-3 to-chart-4 hover:from-chart-3/90 hover:to-chart-4/90 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none disabled:opacity-50 button-glow"
-                              disabled={isRegistering || passwordStrength.score < 5}
+                              disabled={isRegistering || passwordStrength.score < 5 || registrationSuccess}
                           >
-                            {isRegistering ? (
+                            {registrationSuccess ? (
+                                <>
+                                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                                  Account Created!
+                                </>
+                            ) : isRegistering ? (
                                 <>
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                   Creating Account...

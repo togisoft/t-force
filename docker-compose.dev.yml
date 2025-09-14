@@ -59,6 +59,7 @@ services:
       PORT: ${PORT}
       RUST_LOG: ${RUST_LOG}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      CORS_ORIGIN: "*"  # Development - allow any origin
     # Keep direct port exposure for development convenience
     ports:
       - "8081:8080"

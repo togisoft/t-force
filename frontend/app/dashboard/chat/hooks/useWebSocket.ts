@@ -57,9 +57,6 @@ export function useWebSocket({ user, onMessage, onConnectionChange }: UseWebSock
       ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/chat/ws`
       : 'ws://localhost:8000/api/chat/ws');
 
-  console.log('WebSocket URL:', WS_URL);
-  console.log('Current location:', typeof window !== 'undefined' ? window.location.href : 'server-side');
-
   const updateConnectionState = (state: string) => {
     setConnectionState(state);
     const isConnected = state === 'connected';
@@ -107,7 +104,7 @@ export function useWebSocket({ user, onMessage, onConnectionChange }: UseWebSock
         timestamp: Date.now() 
       });
       
-      if (!isPriority) {
+      if (!isPriority && process.env.NODE_ENV === 'development') {
         console.warn('WebSocket not connected. Message queued:', message);
       }
       return false;
@@ -148,16 +145,13 @@ export function useWebSocket({ user, onMessage, onConnectionChange }: UseWebSock
     updateConnectionState('connecting');
     
     try {
-      console.log('Attempting to connect to WebSocket:', WS_URL);
       wsRef.current = new WebSocket(WS_URL);
     } catch (error) {
-      console.error('Failed to create WebSocket:', error);
       updateConnectionState('failed');
       return;
     }
 
     wsRef.current.onopen = () => {
-      console.log('WebSocket connected successfully.');
       reconnectAttemptsRef.current = 0;
       updateConnectionState('connected');
       startPingInterval();
@@ -167,7 +161,6 @@ export function useWebSocket({ user, onMessage, onConnectionChange }: UseWebSock
 
       // Auto-rejoin rooms on successful connection
       if (activeRoomsRef.current.size > 0) {
-        console.log('Re-joining active rooms:', [...activeRoomsRef.current]);
         activeRoomsRef.current.forEach(roomId => {
           sendWsMessage({ type: 'join', room_id: roomId }, true);
         });
@@ -181,7 +174,6 @@ export function useWebSocket({ user, onMessage, onConnectionChange }: UseWebSock
         // Handle pong messages
         if (message.message_type === 'pong') {
           const latency = Date.now() - lastPingRef.current;
-          console.debug(`WebSocket latency: ${latency}ms`);
           return;
         }
 
@@ -192,7 +184,6 @@ export function useWebSocket({ user, onMessage, onConnectionChange }: UseWebSock
     };
 
     wsRef.current.onclose = (event) => {
-      console.warn(`WebSocket disconnected: code ${event.code}, reason: ${event.reason}`);
       stopPingInterval();
       
       if (event.code === 1000) { // Normal closure
@@ -253,13 +244,11 @@ export function useWebSocket({ user, onMessage, onConnectionChange }: UseWebSock
   }, [stopPingInterval]);
 
   const joinRoom = useCallback((roomId: string) => {
-    console.log(`Attempting to join room: ${roomId}`);
     activeRoomsRef.current.add(roomId);
     sendWsMessage({ type: 'join', room_id: roomId }, true);
   }, [sendWsMessage]);
 
   const leaveRoom = useCallback((roomId: string) => {
-    console.log(`Attempting to leave room: ${roomId}`);
     activeRoomsRef.current.delete(roomId);
     sendWsMessage({ type: 'leave', room_id: roomId }, true);
   }, [sendWsMessage]);

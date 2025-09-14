@@ -6,6 +6,12 @@ const nextConfig = {
   output: 'standalone', // Optimized for Docker deployments
   // Set the output file tracing root to resolve the workspace root warning
   outputFileTracingRoot: path.join(__dirname, '..'),
+  // Remove console logs in production
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn']
+    } : false,
+  },
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000', 'localhost:8080'],

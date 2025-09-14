@@ -1,78 +1,60 @@
-# Multi-stage build for production
-FROM rust:1.77-slim-bookworm as builder
+# Stage 1: Build stage
+FROM rust:1.89-slim-bookworm AS builder
+
+WORKDIR /app
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     libpq-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-# Copy dependency files for better caching
-COPY Cargo.toml Cargo.lock ./
-COPY migration/Cargo.toml ./migration/
-
-# Create dummy source files to pre-build dependencies
-RUN mkdir -p src && \
-    echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs && \
-    mkdir -p migration/src && \
-    echo "pub fn main() {}" > migration/src/lib.rs
-
-# Build dependencies (this layer will be cached)
-RUN cargo build --release
-
-# Remove dummy files and copy actual source
-RUN rm -rf src migration/src
+# Copy all source code
 COPY . .
 
 # Build the application
 RUN cargo build --release --bin tforce
 
-# Production runtime stage
-FROM debian:bookworm-slim
+# Verify binary was created
+RUN ls -la target/release/
 
-# Install runtime dependencies and security tools
-RUN apt-get update && apt-get install -y \
-    libssl-dev \
-    libpq-dev \
-    ca-certificates \
-    curl \
-    dumb-init \
+# Stage 2: Runtime stage
+FROM debian:bookworm-slim AS production
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libssl3 \
+        libpq5 \
+        ca-certificates \
+        curl \
+        dumb-init \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Create non-root user for security
-RUN groupadd -r tforce && useradd -r -g tforce tforce
-
-# Create necessary directories
-RUN mkdir -p /app/uploads /app/logs /app/templates && \
+# Create non-root user
+RUN groupadd -r tforce && \
+    useradd -r -g tforce tforce && \
+    mkdir -p /app/uploads /app/logs /app/templates && \
     chown -R tforce:tforce /app
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /app/target/release/tforce /app/tforce
-COPY --from=builder /app/templates /app/templates
+# Copy binary and templates
+COPY --from=builder --chown=tforce:tforce /app/target/release/tforce ./tforce
+COPY --from=builder --chown=tforce:tforce /app/templates ./templates
 
-# Set proper permissions
-RUN chown tforce:tforce /app/tforce && \
-    chmod +x /app/tforce
+# Make binary executable
+RUN chmod +x ./tforce && ls -la ./tforce
 
-# Switch to non-root user
 USER tforce
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8080/api/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
-# Expose port
 EXPOSE 8080
 
-# Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
-
-# Run the application
 CMD ["./tforce"]

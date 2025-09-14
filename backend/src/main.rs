@@ -78,12 +78,28 @@ async fn main() -> std::io::Result<()> {
     
     // Start HTTP server
     HttpServer::new(move || {
-        // Configure CORS
-        let cors = Cors::default()
-            .allow_any_origin() // In production, you should restrict this
-            .allow_any_method()
-            .allow_any_header()
-            .max_age(3600);
+        // Configure CORS based on environment
+        let cors_origin = env::var("CORS_ORIGIN").unwrap_or_else(|_| "*".to_string());
+        
+        let cors = if cors_origin == "*" {
+            // Development mode - permissive CORS
+            log::warn!("Using permissive CORS (allow_any_origin) - not recommended for production");
+            Cors::default()
+                .allow_any_origin()
+                .allow_any_method()
+                .allow_any_header()
+                .supports_credentials()
+                .max_age(3600)
+        } else {
+            // Production mode - specific origin
+            log::info!("Using production CORS with origin: {}", cors_origin);
+            Cors::default()
+                .allowed_origin(&cors_origin)
+                .allow_any_method()
+                .allow_any_header()
+                .supports_credentials()
+                .max_age(3600)
+        };
         
         // JWT secret is passed to the app as app_data
         // Each route handler that needs authentication will use it

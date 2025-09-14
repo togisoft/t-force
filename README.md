@@ -1,23 +1,26 @@
-# 🔐 AuthForce - Modern Authentication & Chat Platform
+# 🔐 T-Force - Modern Authentication & Chat Platform
 
 <div align="center">
-  <img src="./assets/logo.svg" alt="AuthForce Logo" width="200" height="200">
-  
-  [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
-  [![Next.js](https://img.shields.io/badge/Next.js-15.5.0-black.svg)](https://nextjs.org/)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-  [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
-  [![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://www.docker.com/)
-  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+  <img src="./assets/logo.png" alt="T-Force Logo" width="200" height="200">
+
+[![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15.5.0-black.svg)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 </div>
 
 ## 📸 Screenshots
 
 <div align="center">
-  <img src="./assets/screenshot.jpg" alt="AuthForce Dashboard" width="100%" style="max-width: 1000px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+  <img src="./assets/screenshot.jpg" alt="T-Force Dashboard" width="100%" style="max-width: 1000px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
 </div>
 <div align="center">
-  <img src="./assets/screenshot.png" alt="AuthForce Dashboard" width="100%" style="max-width: 1000px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+  <img src="./assets/screenshot.png" alt="T-Force Dashboard" width="100%" style="max-width: 1000px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+</div>
+<div align="center">
+  <img src="./assets/performance.png" alt="T-Force Dashboard" width="100%" style="max-width: 1000px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
 </div>
 ## 📋 Table of Contents
 
@@ -35,21 +38,13 @@
 
 ## 🎯 About the Project
 
-AuthForce is a comprehensive authentication and real-time chat platform developed for modern web applications. It provides a high-performance, secure, and scalable solution using Rust backend and Next.js frontend.
+T-Force is a comprehensive authentication and real-time chat platform developed for modern web applications. It provides a high-performance, secure, and scalable solution using Rust backend and Next.js frontend.
 
 ### 🎯 Goals
 - **Security**: Modern encryption and authentication standards
 - **Performance**: Rust's speed and Next.js optimizations
 - **Scalability**: Microservice architecture and Docker support
 - **User Experience**: Modern UI/UX design
-
-### 📊 Performance Metrics
-- **API Response Time**: < 50ms (average)
-- **WebSocket Latency**: < 10ms
-- **Memory Usage**: ~50MB (backend), ~100MB (frontend)
-- **Concurrent Users**: 1000+ (single instance)
-- **Database Connections**: Pool-based connection management
-- **File Upload**: Chunked upload support (max 100MB)
 
 ## ✨ Features
 
@@ -124,7 +119,6 @@ lettre = "0.11.18"           # Email sending
 - **PostgreSQL 16**: Primary database
 - **Docker & Docker Compose**: Containerization
 - **Traefik**: Reverse proxy and load balancer
-- **Redis** (optional): Cache and session store
 - **Nginx** (production): Static file serving
 - **Let's Encrypt**: Automatic SSL certificates
 
@@ -167,32 +161,32 @@ lettre = "0.11.18"           # Email sending
 
 #### 🔐 Authentication
 ```
-POST   /api/auth/register     # Kullanıcı kaydı
-POST   /api/auth/login        # Giriş yapma
-POST   /api/auth/logout       # Çıkış yapma
-GET    /api/auth/validate     # Token doğrulama
-POST   /api/auth/forgot       # Şifre sıfırlama isteği
-POST   /api/auth/reset        # Şifre sıfırlama
+POST   /api/auth/register     # User registration
+POST   /api/auth/login        # Login
+POST   /api/auth/logout       # Logout
+GET    /api/auth/validate     # Token validation
+POST   /api/auth/forgot       # Password reset request
+POST   /api/auth/reset        # Password reset
 ```
 
 #### 👤 User Management
 ```
-GET    /api/user/me           # Kullanıcı bilgileri
-PUT    /api/user/profile      # Profil güncelleme
-POST   /api/user/avatar       # Profil fotoğrafı
-GET    /api/user/sessions     # Aktif oturumlar
-DELETE /api/user/session/:id  # Oturum sonlandırma
+GET    /api/user/me           # Get user information
+PUT    /api/user/profile      # Update profile
+POST   /api/user/avatar       # Upload profile picture
+GET    /api/user/sessions     # Active sessions
+DELETE /api/user/session/:id  # Terminate session
 ```
 
 #### 💬 Chat System
 ```
-GET    /api/chat/rooms        # Sohbet odaları
-POST   /api/chat/rooms        # Oda oluşturma
-GET    /api/chat/rooms/:id    # Oda detayları
-DELETE /api/chat/rooms/:id    # Oda silme
-GET    /api/chat/messages     # Mesaj geçmişi
-POST   /api/chat/upload       # Medya yükleme
-WS     /ws                    # WebSocket bağlantısı
+GET    /api/chat/rooms        # Get chat rooms
+POST   /api/chat/rooms        # Create a new room
+GET    /api/chat/rooms/:id    # Get room details
+DELETE /api/chat/rooms/:id    # Delete room
+GET    /api/chat/messages     # Get message history
+POST   /api/chat/upload       # Upload media
+WS     /ws                    # WebSocket connection
 ```
 
 ## 🚀 Installation
@@ -207,34 +201,40 @@ WS     /ws                    # WebSocket bağlantısı
 
 1. **Clone the project**
 ```bash
-git clone https://github.com/yourusername/authforce.git
-cd authforce
+git clone https://github.com/togisoft/t-force.git
+cd t-force
 ```
 
 2. **Create environment file**
 ```bash
-cp .env.template .env
-# Edit the .env file
+cp env.prod.example .env.prod
+# Edit the .env.prod file
 ```
 
 3. **Start development environment**
 ```bash
+# For development
+cp env.prod.example .env.dev
 ./scripts/dev.sh
+
+# For production
+./scripts/prod-deploy.sh
 ```
 
 4. **Access the application**
 - Frontend: http://localhost
 - Backend API: http://localhost/api
 - Traefik Dashboard: http://localhost:8080
+- Grafana: http://grafana.localhost
 
 ### 🐳 Production Deployment
 
 ```bash
 # Create production environment file
-cp env.production.template .env.production
+cp env.prod.example .env.prod
 
 # Start in production mode
-./scripts/prod.sh
+./scripts/prod-deploy.sh
 ```
 
 ## 📱 Usage
@@ -272,8 +272,7 @@ cd frontend
 npm install
 npm run dev
 
-# Database migration
-./scripts/migrate.sh
+# Database migration (handled automatically by prod-deploy.sh)
 ```
 
 ### 🧪 Running Tests
@@ -300,22 +299,19 @@ All scripts should be run from the project root directory:
 ./scripts/dev.sh
 
 # Start production environment
-./scripts/prod.sh
-
-# Run database migrations
-./scripts/migrate.sh
-
-# Run test suite
-./scripts/test.sh
+./scripts/prod-deploy.sh
 
 # Create backup
 ./scripts/backup.sh
 
-# Check system health
-./scripts/health-check.sh
+# View logs
+./scripts/logs.sh
 
-# Chat system testing
-./scripts/test_chat.sh
+# Stop services
+./scripts/stop.sh
+
+# Reset environment
+./scripts/reset.sh
 ```
 
 ### 📝 Code Standards
@@ -468,8 +464,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 <div align="center">
   <p>Developed with ❤️</p>
   <p>
-    <a href="https://github.com/yourusername/authforce/issues">🐛 Bug Report</a> |
-    <a href="https://github.com/yourusername/authforce/discussions">💬 Discussions</a> |
-    <a href="https://github.com/yourusername/authforce/wiki">📖 Wiki</a>
+    <a href="https://github.com/togisoft/t-force/issues">🐛 Bug Report</a> |
+    <a href="https://github.com/togisoft/t-force/discussions">💬 Discussions</a> |
+    <a href="https://github.com/togisoft/t-force/wiki">📖 Wiki</a>
   </p>
 </div>

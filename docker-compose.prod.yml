@@ -1,67 +1,26 @@
-version: '3.8'
-
 services:
-  # Reverse Proxy with SSL/TLS
+  # Reverse Proxy - Simplified for local testing
   traefik:
-    image: traefik:v2.10-alpine
+    image: traefik:v2.10
     container_name: tforce-traefik-prod
     restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
     ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"  # Traefik dashboard (internal only)
+      - "80:80"      # Single port for all services
+      - "8080:8080"  # Traefik dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik_certs:/certs
-      - traefik_config:/etc/traefik
-      - traefik_logs:/var/log/traefik
     command:
-      # Global configuration
-      - "--global.checknewversion=false"
-      - "--global.sendanonymoususage=false"
-      
-      # API and dashboard (internal only)
-      - "--api.dashboard=true"
-      - "--api.insecure=false"
-      
-      # Entry points
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      
-      # HTTP to HTTPS redirect
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      
-      # Providers
+      - "--api.insecure=true"  # Enable dashboard
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=tforce-network"
-      
-      # Logging
-      - "--log.level=INFO"
-      - "--accesslog=true"
-      - "--accesslog.filepath=/var/log/traefik/access.log"
-      
-      # Security headers
-      - "--entrypoints.websecure.http.middlewares=security-headers@file"
-      
-      # Rate limiting
-      - "--entrypoints.websecure.http.middlewares=rate-limit@file"
-      
-      # File provider for middleware
-      - "--providers.file.directory=/etc/traefik"
-      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=DEBUG"    # More verbose logging for debugging
+      - "--api.debug=true"
+      - "--ping=true"
     networks:
       - tforce-network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
-      - "traefik.http.routers.traefik.entrypoints=websecure"
-      - "traefik.http.routers.traefik.service=api@internal"
-      - "traefik.http.routers.traefik.middlewares=auth@file"
-      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
 
   # Database with enhanced security
   db:
@@ -94,29 +53,6 @@ services:
         reservations:
           memory: 512M
 
-  # Redis for caching and sessions
-  redis:
-    image: redis:7-alpine
-    container_name: tforce-redis-prod
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - tforce-network
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 128M
 
   # Backend with enhanced security and monitoring
   backend:
@@ -127,10 +63,10 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    env_file:
+      - .env.prod
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     environment:
       # Database
@@ -151,8 +87,6 @@ services:
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       
-      # Redis
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       
       # Email
       SMTP_HOST: ${SMTP_HOST}
@@ -168,19 +102,21 @@ services:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || Path(`/health`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend.priority=10"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
-      - "traefik.http.routers.backend.middlewares=rate-limit@file"
-      - "traefik.http.routers.backend.middlewares=security-headers@file"
+      - "traefik.http.middlewares.no-cache-backend.headers.customResponseHeaders.Cache-Control=no-cache, no-store, must-revalidate"
+      - "traefik.http.middlewares.no-cache-backend.headers.customResponseHeaders.Pragma=no-cache"
+      - "traefik.http.middlewares.no-cache-backend.headers.customResponseHeaders.Expires=0"
+      - "traefik.http.routers.backend.middlewares=no-cache-backend"
     networks:
       - tforce-network
     deploy:
@@ -221,7 +157,7 @@ services:
       # Environment
       NODE_ENV: production
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "sh", "-c", "curl -f http://$(hostname -i):3000/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -229,11 +165,13 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       - "traefik.http.routers.frontend.priority=1"
-      - "traefik.http.routers.frontend.middlewares=security-headers@file"
+      - "traefik.http.middlewares.no-cache-frontend.headers.customResponseHeaders.Cache-Control=no-cache, no-store, must-revalidate"
+      - "traefik.http.middlewares.no-cache-frontend.headers.customResponseHeaders.Pragma=no-cache"
+      - "traefik.http.middlewares.no-cache-frontend.headers.customResponseHeaders.Expires=0"
+      - "traefik.http.routers.frontend.middlewares=no-cache-frontend"
     networks:
       - tforce-network
     deploy:
@@ -268,11 +206,6 @@ services:
       - tforce-network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=Host(`monitoring.localhost`)"
-      - "traefik.http.routers.prometheus.entrypoints=websecure"
-      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
-      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
-      - "traefik.http.routers.prometheus.middlewares=auth@file"
 
   # Grafana for visualization
   grafana:
@@ -293,10 +226,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
-      - "traefik.http.routers.grafana.entrypoints=websecure"
-      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.grafana.entrypoints=web"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
-      - "traefik.http.routers.grafana.middlewares=auth@file"
 
   # Backup service
   backup:
@@ -319,17 +250,9 @@ services:
 volumes:
   postgres_data:
     driver: local
-  redis_data:
-    driver: local
   prometheus_data:
     driver: local
   grafana_data:
-    driver: local
-  traefik_certs:
-    driver: local
-  traefik_config:
-    driver: local
-  traefik_logs:
     driver: local
 
 networks:

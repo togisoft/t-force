@@ -371,6 +371,7 @@ impl ChatSession {
 
                 // Broadcast to room
                 server.broadcast_to_room(&room_id, &message_response, None);
+                info!("Message broadcasted to room {}: {}", room_id, content);
 
                 // Send acknowledgment if temp_id is provided
                 if let Some(temp_id) = temp_id {
@@ -410,6 +411,7 @@ impl ChatSession {
 
                         match ChatMessage::insert(message).exec(&db_clone).await {
                             Ok(_) => {
+                                #[cfg(debug_assertions)]
                                 debug!("Message persisted to database: {}", message_id_clone);
                             }
                             Err(e) => {
@@ -504,6 +506,7 @@ impl ChatSession {
 
                                 match MessageReaction::insert(reaction).exec(&db).await {
                                     Ok(_) => {
+                                        #[cfg(debug_assertions)]
                                         debug!(
                                             "Reaction persisted to database: message_id={}, user_id={}, emoji={}",
                                             msg_uuid, user_id, emoji_clone
@@ -525,6 +528,7 @@ impl ChatSession {
                                 {
                                     Ok(res) => {
                                         if res.rows_affected == 0 {
+                                            #[cfg(debug_assertions)]
                                             debug!(
                                                 "No reaction found to remove for message_id={}, user_id={}, emoji={}",
                                                 msg_uuid, user_id, emoji_clone
@@ -569,8 +573,19 @@ impl ChatSession {
             }
 
             WsMessage::Ping => {
-                // Update last ping time
-                // This will be handled in the session
+                // Send pong response with timestamp (milliseconds for JavaScript compatibility)
+                let now_ms = Utc::now().timestamp_millis();
+                let pong_response = WsResponse {
+                    message_type: "pong".to_string(),
+                    data: serde_json::json!({
+                        "timestamp": now_ms
+                    }),
+                    timestamp: now_ms,
+                    message_id: None,
+                };
+                
+                // Send pong back to the sender
+                let _ = self.addr.do_send(SessionMessage(pong_response));
             }
         }
 
@@ -594,10 +609,13 @@ impl Actor for ChatSession {
             }
 
             // Send pong
+            let now_ms = Utc::now().timestamp_millis();
             let pong_response = WsResponse {
                 message_type: "pong".to_string(),
-                data: serde_json::json!({}),
-                timestamp: now,
+                data: serde_json::json!({
+                    "timestamp": now_ms
+                }),
+                timestamp: now_ms,
                 message_id: None,
             };
             act.send_json(ctx, pong_response);
@@ -631,12 +649,26 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ChatSession {
                 // Handle ping separately
                 if let WsMessage::Ping = ws_message {
                     self.last_ping = Utc::now().timestamp();
+                    
+                    // Send pong response with timestamp (milliseconds for JavaScript compatibility)
+                    let now_ms = Utc::now().timestamp_millis();
+                    let pong_response = WsResponse {
+                        message_type: "pong".to_string(),
+                        data: serde_json::json!({
+                            "timestamp": now_ms
+                        }),
+                        timestamp: now_ms,
+                        message_id: None,
+                    };
+                    
+                    self.send_json(ctx, pong_response);
                     return;
                 }
 
                 // Handle other messages
                 match self.handle_ws_message_sync(ws_message) {
                     Ok(_) => {
+                        // Keep this log for debugging message handling
                         debug!("WebSocket message handled successfully");
                     }
                     Err(e) => {
@@ -694,50 +726,63 @@ lazy_static::lazy_static! {
 
 #[get("/api/chat/ws")]
 pub async fn ws_index(req: HttpRequest, stream: web::Payload, jwt_secret: web::Data<String>, db: web::Data<DatabaseConnection>) -> Result<HttpResponse, Error> {
+    // Only log in development
+    #[cfg(debug_assertions)]
     debug!("WebSocket connection attempt - Path: {}", req.path());
-    debug!("WebSocket connection attempt - Headers: {:?}", req.headers());
 
-    // Check for auth_token cookie
-    if let Some(cookie) = req.cookie("auth_token") {
-        debug!("Found auth_token cookie: {}", cookie.value());
-    } else {
-        debug!("No auth_token cookie found");
+    // Only log in development
+    #[cfg(debug_assertions)]
+    {
+        // Check for auth_token cookie
+        if let Some(cookie) = req.cookie("auth_token") {
+            debug!("Found auth_token cookie: {}", cookie.value());
+        } else {
+            debug!("No auth_token cookie found");
 
-        // Check all cookies for debugging
-        if let Ok(cookies) = req.cookies() {
-            for cookie in cookies.iter() {
-                debug!("Cookie found: {} = {}", cookie.name(), cookie.value());
+            // Check all cookies for debugging
+            if let Ok(cookies) = req.cookies() {
+                for cookie in cookies.iter() {
+                    debug!("Cookie found: {} = {}", cookie.name(), cookie.value());
+                }
             }
+        }
+
+        // Check for Authorization header
+        if let Some(auth_header) = req.headers().get("Authorization") {
+            debug!("Found Authorization header: {}", auth_header.to_str().unwrap_or("invalid"));
+        } else {
+            debug!("No Authorization header found");
         }
     }
 
-    // Check for Authorization header
-    if let Some(auth_header) = req.headers().get("Authorization") {
-        debug!("Found Authorization header: {}", auth_header.to_str().unwrap_or("invalid"));
-    } else {
-        debug!("No Authorization header found");
-    }
-
-    // Try to extract token with more detailed logging
+    // Try to extract token
     let token = match extract_token_from_cookie_or_header(&req) {
         Some(token) => {
+            #[cfg(debug_assertions)]
             debug!("Token extracted successfully, length: {}", token.len());
             token
         },
         None => {
             error!("No authentication token found in cookie or header");
-            error!("Available cookies: {:?}", req.cookies());
-            error!("Available headers: {:?}", req.headers());
+            #[cfg(debug_assertions)]
+            {
+                error!("Available cookies: {:?}", req.cookies());
+                error!("Available headers: {:?}", req.headers());
+            }
             return Err(actix_web::error::ErrorUnauthorized("Authentication token not found. Please log in again."));
         }
     };
 
+    #[cfg(debug_assertions)]
     debug!("Validating token...");
     let claims = match JwtAuth::validate_token(&token, &jwt_secret) {
         Ok(claims) => {
-            debug!("Token validated successfully for user: {}", claims.name);
-            debug!("Token structure - sub: {}, backend_user_id: {:?}, email: {}",
-                   claims.sub, claims.backend_user_id, claims.email);
+            #[cfg(debug_assertions)]
+            {
+                debug!("Token validated successfully for user: {}", claims.name);
+                debug!("Token structure - sub: {}, backend_user_id: {:?}, email: {}",
+                       claims.sub, claims.backend_user_id, claims.email);
+            }
             claims
         },
         Err(e) => {
@@ -761,6 +806,7 @@ pub async fn ws_index(req: HttpRequest, stream: web::Payload, jwt_secret: web::D
         Some(backend_user_id) => {
             match Uuid::parse_str(backend_user_id) {
                 Ok(id) => {
+                    #[cfg(debug_assertions)]
                     debug!("User ID parsed successfully from backend_user_id: {}", id);
                     id
                 },

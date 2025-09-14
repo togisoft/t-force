@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Latency Test with Authentication</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+            padding: 20px;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        .main-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .container {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .container:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-section {
+            grid-column: 1 / -1;
+            background: white;
+        }
+
+        .test-section {
+            background: white;
+        }
+
+        .results-section {
+            background: white;
+        }
+
+        .log-section {
+            grid-column: 1 / -1;
+            background: white;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-align: center;
+            color: #0f172a;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: #0f172a;
+        }
+
+        h3 {
+            font-size: 1.125rem;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: #334155;
+        }
+
+        .subtitle {
+            text-align: center;
+            margin-bottom: 32px;
+            color: #64748b;
+            font-size: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            color: #374151;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            color: #1f2937;
+            font-size: 1rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        button {
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+
+        button:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .test-button {
+            background: #10b981;
+        }
+
+        .test-button:hover {
+            background: #059669;
+        }
+
+        .stop-button {
+            background: #ef4444;
+        }
+
+        .stop-button:hover {
+            background: #dc2626;
+        }
+
+        .log {
+            background: #0f172a;
+            border: 1px solid #334155;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #22c55e;
+        }
+
+        .log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .log::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        .log::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+
+        .results-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .results-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .results-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        .results-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        .result {
+            margin: 0;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            background: white;
+            transition: background-color 0.2s ease;
+        }
+
+        .result:last-child {
+            border-bottom: none;
+        }
+
+        .result:hover {
+            background: #f8fafc;
+        }
+
+        .latency {
+            font-weight: 600;
+            font-size: 0.875rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .latency.good {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .latency.medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .latency.bad {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-weight: 500;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+
+        .status.connected {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .status.disconnected {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            transition: background-color 0.2s ease;
+        }
+
+        .stat-card:hover {
+            background: #f1f5f9;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #0f172a;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .container {
+                padding: 24px;
+            }
+            
+            h1 {
+                font-size: 1.75rem;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="container login-section fade-in">
+            <h1>WebSocket Latency Test</h1>
+            <p class="subtitle">Professional WebSocket Performance Testing Tool</p>
+            
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" value="admin@example.com" placeholder="Enter your email address">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" value="Admin123!" placeholder="Enter your password">
+            </div>
+            
+            <div class="button-group">
+                <button onclick="login()">Login & Connect</button>
+            </div>
+            
+            <div id="loginStatus" class="status disconnected">Not authenticated</div>
+        </div>
+
+        <div class="container test-section fade-in">
+            <h2>Performance Tests</h2>
+            <p style="margin-bottom: 24px; color: #64748b;">Choose your testing method:</p>
+            
+            <div class="button-group">
+                <button id="pingPongBtn" class="test-button" onclick="startPingPongTest()" disabled>
+                    Ping-Pong Test
+                </button>
+                <button id="pingPongStopBtn" class="stop-button" onclick="stopPingPongTest()" disabled>
+                    Stop
+                </button>
+            </div>
+            
+            <div class="button-group">
+                <button id="continuousBtn" class="test-button" onclick="startContinuousTest()" disabled>
+                    Continuous Test
+                </button>
+                <button id="continuousStopBtn" class="stop-button" onclick="stopContinuousTest()" disabled>
+                    Stop
+                </button>
+            </div>
+            
+            <div class="button-group">
+                <button id="batchBtn" class="test-button" onclick="startBatchTest()" disabled>
+                    Batch Test
+                </button>
+            </div>
+            
+            <div id="wsStatus" class="status disconnected">WebSocket: Disconnected</div>
+        </div>
+
+        <div class="container results-section fade-in">
+            <h2>Live Results</h2>
+            
+            <h3>Ping-Pong Test Results</h3>
+            <div class="results-container" id="pingPongResults"></div>
+            
+            <h3>Continuous Test Results</h3>
+            <div class="results-container" id="continuousResults"></div>
+            
+            <h3>Batch Test Results</h3>
+            <div class="results-container" id="batchResults"></div>
+        </div>
+
+        <div class="container log-section fade-in">
+            <h2>Activity Monitor</h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let authToken = null;
+        let pingPongInterval = null;
+        let continuousInterval = null;
+        let pingTimes = [];
+        let testCount = 0;
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'fade-in';
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const statusDiv = document.getElementById('loginStatus');
+            
+            log('Logging in...');
+            
+            try {
+                const response = await fetch('http://localhost/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.token;
+                    
+                    statusDiv.textContent = 'Authenticated & Ready';
+                    statusDiv.className = 'status connected';
+                    
+                    // Enable test buttons
+                    const buttons = ['pingPongBtn', 'continuousBtn', 'batchBtn'];
+                    buttons.forEach(id => {
+                        const btn = document.getElementById(id);
+                        btn.disabled = false;
+                    });
+                    
+                    log('Authentication successful!');
+                    log('Test buttons enabled - Ready to start testing');
+                } else {
+                    const error = await response.text();
+                    statusDiv.textContent = `Login failed: ${error}`;
+                    statusDiv.className = 'status disconnected';
+                    log(`❌ Login failed: ${error}`);
+                }
+            } catch (error) {
+                statusDiv.textContent = `Login error: ${error.message}`;
+                statusDiv.className = 'status disconnected';
+                log(`❌ Login error: ${error.message}`);
+            }
+        }
+
+        async function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    resolve();
+                    return;
+                }
+                
+                const wsUrl = `ws://localhost/api/chat/ws?token=${encodeURIComponent(authToken)}`;
+                log(`Connecting to WebSocket: ${wsUrl}`);
+                log(`Auth token: ${authToken ? 'Available' : 'Missing'}`);
+                
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    log('WebSocket connection established');
+                    const wsStatus = document.getElementById('wsStatus');
+                    wsStatus.textContent = 'WebSocket: Connected & Ready';
+                    wsStatus.className = 'status connected';
+                    resolve();
+                };
+                
+                ws.onerror = (error) => {
+                    log(`❌ WebSocket error: ${error}`);
+                    reject(error);
+                };
+                
+                ws.onclose = () => {
+                    log('WebSocket connection closed');
+                    document.getElementById('wsStatus').textContent = 'WebSocket: Disconnected';
+                    document.getElementById('wsStatus').className = 'status disconnected';
+                };
+                
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        handleWebSocketMessage(message);
+                    } catch (e) {
+                        // Non-JSON message
+                    }
+                };
+            });
+        }
+
+        function handleWebSocketMessage(message) {
+            if (message.message_type === 'pong' && message.data && message.data.timestamp) {
+                const endTime = Date.now();
+                const latency = endTime - message.data.timestamp;
+                
+                pingTimes.push(latency);
+                testCount++;
+                
+                const resultsDiv = document.getElementById('pingPongResults');
+                const resultElement = document.createElement('div');
+                resultElement.className = 'result fade-in';
+                resultElement.innerHTML = `Ping ${testCount}: ${formatLatency(latency)}`;
+                resultsDiv.appendChild(resultElement);
+                
+                // Auto-scroll to bottom
+                resultsDiv.scrollTop = resultsDiv.scrollHeight;
+                
+                if (testCount >= 20) {
+                    showResults();
+                    stopPingPongTest();
+                }
+            }
+        }
+
+        function getLatencyClass(latency) {
+            if (latency < 50) return 'good';
+            if (latency < 100) return 'medium';
+            return 'bad';
+        }
+
+        function formatLatency(latency) {
+            return `<span class="latency ${getLatencyClass(latency)}">${latency.toFixed(2)}ms</span>`;
+        }
+
+        function showResults() {
+            if (pingTimes.length === 0) return;
+            
+            const avg = pingTimes.reduce((a, b) => a + b, 0) / pingTimes.length;
+            const min = Math.min(...pingTimes);
+            const max = Math.max(...pingTimes);
+            
+            const resultsDiv = document.getElementById('pingPongResults');
+            const statsElement = document.createElement('div');
+            statsElement.className = 'result fade-in';
+            statsElement.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">${avg.toFixed(1)}ms</div>
+                        <div class="stat-label">Average</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${min.toFixed(1)}ms</div>
+                        <div class="stat-label">Minimum</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${max.toFixed(1)}ms</div>
+                        <div class="stat-label">Maximum</div>
+                    </div>
+                </div>
+            `;
+            resultsDiv.appendChild(statsElement);
+        }
+
+        async function startPingPongTest() {
+            try {
+                await connectWebSocket();
+                
+                let pingCount = 0;
+                const maxPings = 20;
+                
+                pingPongInterval = setInterval(() => {
+                    if (pingCount >= maxPings) {
+                        stopPingPongTest();
+                        return;
+                    }
+                    
+                    const startTime = Date.now();
+                    const pingId = `ping_${startTime}_${Math.random()}`;
+                    
+                    ws.send(JSON.stringify({
+                        type: 'ping',
+                        id: pingId,
+                        timestamp: startTime
+                    }));
+                    
+                    pingCount++;
+                    
+                }, 1000);
+                
+                log('Ping-Pong test started');
+                
+            } catch (error) {
+                log(`❌ Ping-Pong test error: ${error.message}`);
+            }
+        }
+
+        function stopPingPongTest() {
+            if (pingPongInterval) {
+                clearInterval(pingPongInterval);
+                pingPongInterval = null;
+                log('Ping-Pong test stopped');
+            }
+        }
+
+        async function startContinuousTest() {
+            try {
+                await connectWebSocket();
+                
+                let testNumber = 0;
+                const latencies = [];
+                
+                continuousInterval = setInterval(async () => {
+                    testNumber++;
+                    const startTime = Date.now();
+                    const testId = `continuous_${startTime}_${Math.random()}`;
+                    
+                    ws.send(JSON.stringify({
+                        type: 'ping',
+                        id: testId,
+                        timestamp: startTime
+                    }));
+                    
+                    // Wait for pong message
+                    const originalOnMessage = ws.onmessage;
+                    ws.onmessage = (event) => {
+                        originalOnMessage(event);
+                        
+                        try {
+                            const data = JSON.parse(event.data);
+                            if (data.message_type === 'pong' && data.data && data.data.timestamp) {
+                                const endTime = Date.now();
+                                const latency = endTime - data.data.timestamp;
+                                
+                                latencies.push(latency);
+                                
+                                const resultsDiv = document.getElementById('continuousResults');
+                                resultsDiv.innerHTML = `
+                                    <div class="result">
+                                        Test #${testNumber}: ${formatLatency(latency)}
+                                    </div>
+                                    <div class="result">
+                                        Last 10 tests average: ${formatLatency(
+                                            latencies.slice(-10).reduce((a, b) => a + b, 0) / Math.min(10, latencies.length)
+                                        )}
+                                    </div>
+                                `;
+                                
+                                // Auto-scroll to bottom
+                                resultsDiv.scrollTop = resultsDiv.scrollHeight;
+                            }
+                        } catch (e) {
+                            // Not a pong message
+                        }
+                    };
+                    
+                }, 2000);
+                
+                log('Continuous test started');
+                
+            } catch (error) {
+                log(`❌ Continuous test error: ${error.message}`);
+            }
+        }
+
+        function stopContinuousTest() {
+            if (continuousInterval) {
+                clearInterval(continuousInterval);
+                continuousInterval = null;
+                log('Continuous test stopped');
+            }
+        }
+
+        async function startBatchTest() {
+            try {
+                await connectWebSocket();
+                
+                const batchSize = 10;
+                const latencies = [];
+                const resultsDiv = document.getElementById('batchResults');
+                
+                resultsDiv.innerHTML = '<div class="result">Starting batch test...</div>';
+                
+                for (let i = 0; i < batchSize; i++) {
+                    const startTime = Date.now();
+                    const testId = `batch_${i}_${startTime}`;
+                    
+                    await new Promise((resolve) => {
+                        ws.send(JSON.stringify({
+                            type: 'ping',
+                            id: testId,
+                            timestamp: startTime
+                        }));
+                        
+                        const originalOnMessage = ws.onmessage;
+                        ws.onmessage = (event) => {
+                            originalOnMessage(event);
+                            
+                            try {
+                                const data = JSON.parse(event.data);
+                                if (data.message_type === 'pong' && data.data && data.data.timestamp) {
+                                    const endTime = Date.now();
+                                    const latency = endTime - data.data.timestamp;
+                                    latencies.push(latency);
+                                    resolve();
+                                }
+                            } catch (e) {
+                                // Not a pong message
+                            }
+                        };
+                    });
+                    
+                    // Short delay
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                // Calculate statistics
+                const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+                const min = Math.min(...latencies);
+                const max = Math.max(...latencies);
+                
+                resultsDiv.innerHTML = `
+                    <div class="result">
+                        <strong>Batch Test Results (${batchSize} tests):</strong><br>
+                        Average: ${formatLatency(avg)}<br>
+                        Minimum: ${formatLatency(min)}<br>
+                        Maximum: ${formatLatency(max)}
+                    </div>
+                `;
+                
+                // Auto-scroll to bottom
+                resultsDiv.scrollTop = resultsDiv.scrollHeight;
+                
+                log(`Batch test completed - Average: ${avg.toFixed(2)}ms`);
+                
+            } catch (error) {
+                log(`❌ Batch test error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

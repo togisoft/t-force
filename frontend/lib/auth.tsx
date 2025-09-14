@@ -102,7 +102,7 @@ const showNotification = (message: string, type: 'error' | 'warning' | 'info' = 
   if (typeof window !== 'undefined') {
     if (type === 'error') {
       alert(`Session Error: ${message}`);
-    } else {
+    } else if (process.env.NODE_ENV === 'development') {
       console.warn(`Auth Notification: ${message}`);
     }
   }

@@ -5,8 +5,8 @@ use jsonwebtoken::{decode, DecodingKey, Validation};
 
 use crate::auth::Claims;
 
-/// Extract the token from the cookie or Authorization header
-/// First tries to extract from the "auth_token" cookie, then falls back to the Authorization header
+/// Extract the token from the cookie, Authorization header, or query parameter
+/// First tries to extract from the "auth_token" cookie, then Authorization header, then query parameter
 pub fn extract_token_from_cookie_or_header(req: &HttpRequest) -> Option<String> {
     // First try to extract from the cookie
     if let Some(cookie) = req.cookie("auth_token") {
@@ -16,8 +16,23 @@ pub fn extract_token_from_cookie_or_header(req: &HttpRequest) -> Option<String> 
     
     debug!("No auth_token cookie found, checking Authorization header");
     
-    // Fall back to the Authorization header
-    extract_token_from_header(req)
+    // Try Authorization header
+    if let Some(token) = extract_token_from_header(req) {
+        return Some(token);
+    }
+    
+    debug!("No Authorization header found, checking query parameter");
+    
+    // Fall back to query parameter
+    if let Some(token) = req.query_string().split('&')
+        .find(|param| param.starts_with("token="))
+        .and_then(|param| param.split('=').nth(1))
+    {
+        debug!("Found token in query parameter");
+        return Some(token.to_string());
+    }
+    
+    None
 }
 
 /// Extract the token from the Authorization header
